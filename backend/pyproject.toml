@@ -1,0 +1,24 @@
+[project]
+name = "ticket-handling-backend"
+version = "0.1.0"
+description = "FastAPI backend for AI-powered payment services ticket handling"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.3",
+    "pydantic-settings>=2.1.0",
+    "supabase>=2.3.4",
+    "redis>=5.0.1",
+    "structlog>=24.1.0",
+    "celery>=5.3.6",
+    "langchain>=0.1.13",
+    "langchain-google-genai>=1.0.1",
+    "langgraph>=0.0.30",
+    "langsmith>=0.1.33",
+    "tiktoken>=0.6.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

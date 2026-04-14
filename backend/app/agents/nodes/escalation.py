@@ -6,7 +6,7 @@ from app.agents.state import TicketAgentState
 from app.agents.prompts.escalation import ESCALATION_SYSTEM_PROMPT
 from app.agents.tools.sla_calculator import calculate_sla_deadline
 from app.agents.tools.notifier import send_notification
-from app.db.supabase import get_supabase
+from app.db.supabase_client import get_supabase
 
 logger = structlog.get_logger()
 
@@ -38,29 +38,27 @@ async def escalation_node(state: TicketAgentState) -> TicketAgentState:
     # 3. Update Supabase
     supabase = get_supabase()
     
-    supabase.table('tickets').update({
-        "status": "escalated"
-    }).eq("id", state['ticket_id']).execute()
+    try:
+        supabase.table('tickets').update({
+            "status": "escalated",
+            "ai_draft": escalation_reason,
+            "assigned_team_id": None, 
+            "sla_deadline": sla_deadline.isoformat()
+        }).eq("id", state['ticket_id']).execute()
+    except Exception as e:
+        logger.error("Failed to update ticket in escalation", error=str(e))
     
     # Insert internal comment for the agent
     comment_payload = {
         "ticket_id": state['ticket_id'],
-        "body": f"ESCALATION SUMMARY:\n{escalation_reason}\n\nAssigned to: {assigned_team}\nSLA Deadline: {sla_deadline}",
-        "author_id": "agent-escalation", # Assuming System/AI UUID
+        "body": f"AI ESCALATION BRIEF:\n{escalation_reason}",
+        "author_type": "ai",
         "is_internal": True
     }
     try:
         supabase.table('ticket_comments').insert(comment_payload).execute()
-    except Exception:
-        pass
-    
-    event_payload = {
-        "ticket_id": state['ticket_id'],
-        "event_type": "escalated",
-        "actor_type": "ai",
-        "actor_id": "agent-escalation"
-    }
-    supabase.table('ticket_events').insert(event_payload).execute()
+    except Exception as e:
+        logger.warning("Failed to insert internal comment", error=str(e))
     
     # 4. Notify Team
     await send_notification(state['ticket_id'], escalation_reason, assigned_team)

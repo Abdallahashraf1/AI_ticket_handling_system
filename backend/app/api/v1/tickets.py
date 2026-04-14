@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from app.models.ticket import TicketCreate, TicketResponse
 from app.middleware.auth import get_current_user
-from app.db.supabase import get_admin_client
+from app.db.supabase_client import get_admin_client
 
 router = APIRouter()
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.db.supabase import get_admin_client
+from app.db.supabase_client import get_admin_client
 from app.db.redis import get_redis
 import structlog
 

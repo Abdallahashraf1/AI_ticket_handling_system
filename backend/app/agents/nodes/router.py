@@ -5,7 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.output_parsers import JsonOutputParser
 from app.agents.state import TicketAgentState
 from app.agents.prompts.router import ROUTER_SYSTEM_PROMPT
-from app.db.supabase import get_supabase
+from app.db.supabase_client import get_supabase
 
 logger = structlog.get_logger()
 

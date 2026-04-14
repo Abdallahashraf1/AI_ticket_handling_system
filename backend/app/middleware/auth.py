@@ -1,5 +1,5 @@
 from fastapi import Request, HTTPException, Depends
-from app.db.supabase import get_client
+from app.db.supabase_client import get_client
 
 async def get_current_user(request: Request) -> dict:
     auth_header = request.headers.get("Authorization")

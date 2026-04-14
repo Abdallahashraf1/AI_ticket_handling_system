@@ -6,7 +6,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from app.agents.state import TicketAgentState
 from app.agents.prompts.triage import TRIAGE_SYSTEM_PROMPT
 from app.agents.tools.duplicate_detector import find_duplicates
-from app.db.supabase import get_supabase
+from app.db.supabase_client import get_supabase
 
 logger = structlog.get_logger()
 
@@ -44,13 +44,16 @@ async def triage_node(state: TicketAgentState) -> TicketAgentState:
     supabase = get_supabase()
     
     # We update the ticket record
-    supabase.table('tickets').update({
-        "category": result.get('category'),
-        "subcategory": result.get('subcategory'),
-        "priority": result.get('priority'),
-        "urgency_score": result.get('urgency_score'),
-        "status": "triaged"
-    }).eq("id", state['ticket_id']).execute()
+    try:
+        supabase.table('tickets').update({
+            "category": result.get('category'),
+            "subcategory": result.get('subcategory'),
+            "priority": result.get('priority'),
+            "urgency_score": result.get('urgency_score'),
+            "status": "triaged"
+        }).eq("id", state['ticket_id']).execute()
+    except Exception as e:
+        logger.error("Failed to update ticket in triage", error=str(e))
     
     # Insert event
     event_payload = {

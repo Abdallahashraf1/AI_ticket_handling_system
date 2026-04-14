@@ -1,7 +1,7 @@
 import asyncio
 import structlog
 from app.celery_app import celery_app
-from app.db.supabase import get_supabase
+from app.db.supabase_client import get_supabase
 from app.agents.graph import ticket_pipeline
 from app.agents.state import TicketAgentState
 

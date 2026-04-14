@@ -5,7 +5,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from app.agents.state import TicketAgentState
 from app.agents.prompts.resolver import RESOLVER_SYSTEM_PROMPT
 from app.agents.tools.rag_search import search_knowledge_base
-from app.db.supabase import get_supabase
+from app.db.supabase_client import get_supabase
 
 logger = structlog.get_logger()
 
@@ -35,29 +35,28 @@ async def resolver_node(state: TicketAgentState) -> TicketAgentState:
     # 3. Update Supabase
     supabase = get_supabase()
     
-    supabase.table('tickets').update({
-        "status": "resolved"
-    }).eq("id", state['ticket_id']).execute()
+    from datetime import datetime, timezone
     
-    event_payload = {
-        "ticket_id": state['ticket_id'],
-        "event_type": "auto_resolved",
-        "actor_type": "ai",
-        "actor_id": "agent-resolver"
-    }
-    supabase.table('ticket_events').insert(event_payload).execute()
+    try:
+        supabase.table('tickets').update({
+            "status": "resolved",
+            "ai_draft": draft_response,
+            "resolved_at": datetime.now(timezone.utc).isoformat()
+        }).eq("id", state['ticket_id']).execute()
+    except Exception as e:
+        logger.error("Failed to update ticket record", error=str(e))
     
-    # Optionally save the draft response as a comment
+    # 4. Post public comment for the customer
     comment_payload = {
         "ticket_id": state['ticket_id'],
         "body": draft_response,
-        "author_id": "agent-resolver", # Assuming the AI has this UUID or we just track it some other way
+        "author_type": "ai",
         "is_internal": False
     }
     try:
         supabase.table('ticket_comments').insert(comment_payload).execute()
     except Exception as e:
-        logger.warning("Failed to insert comment, might need AI user setup", error=str(e))
+        logger.warning("Failed to insert comment", error=str(e))
     
     # 4. Update state and return
     return {

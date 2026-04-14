@@ -7,7 +7,7 @@ class TicketCreate(BaseModel):
     subject: str
     body: str
     category: Optional[str] = None
-    priority: Optional[str] = "low"
+    priority: Optional[str] = None
     attachments: Optional[List[str]] = []
 
 class TicketResponse(BaseModel):

@@ -9,8 +9,8 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str
     SUPABASE_SERVICE_KEY: str
     
-    REDIS_URL: str = "redis://localhost:6379"
-    CELERY_BROKER_URL: str = "redis://localhost:6379"
+    REDIS_URL: str = "redis://redis:6379"
+    CELERY_BROKER_URL: str = "redis://redis:6379"
     
     # AI & Tracing
     GEMINI_API_KEY: str | None = None

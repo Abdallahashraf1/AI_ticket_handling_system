@@ -1,6 +1,6 @@
 import structlog
 from app.agents.state import TicketAgentState
-from app.db.supabase import get_supabase
+from app.db.supabase_client import get_supabase
 
 logger = structlog.get_logger()
 

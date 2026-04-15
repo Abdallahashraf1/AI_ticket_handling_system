@@ -647,35 +647,43 @@ backend/app/
 ### 3.3 — Chunking Pipeline
 
 **What to build:**
-- Split article content into chunks (512 tokens, 50-token overlap)
-- Each chunk stored in `knowledge_chunks` with article reference
-- Token counting via `tiktoken`
+- Split documents into semantically coherent chunks using structure-aware paragraph merging
+- Each chunk stored in `knowledge_chunks` with article reference and section metadata
+- Token counting via `tiktoken` (cl100k_base encoding)
 
 **Implementation detail:**
 
 ```python
 # Chunking strategy:
-# 1. Split by paragraphs (double newline)
-# 2. If paragraph > 512 tokens, split by sentences
-# 3. Merge small consecutive chunks to reach ~512 tokens
-# 4. Add 50-token overlap between consecutive chunks
-# 5. Store chunk_index for ordering
+# 1. Split on structural boundaries first: headings (# / ##) and blank lines (\n\n)
+# 2. Token-count each unit via tiktoken
+# 3. If a unit exceeds 400 tokens, split it further by sentence
+# 4. Greedy-merge consecutive units until adding the next would exceed 400 tokens
+# 5. Add 1-sentence overlap: prepend last sentence of chunk N to chunk N+1
+# 6. Store chunk_index and source_section (nearest heading) as metadata on each chunk
 
-def chunk_article(content: str, max_tokens: int = 512, overlap: int = 50) -> list[str]:
+def chunk_article(content: str, max_tokens: int = 400) -> list[dict]:
+    # Returns: [{"text": str, "chunk_index": int, "section": str}, ...]
     ...
 ```
 
-**Verification:**
-- A 2,000-word article → ~8 chunks of ~512 tokens each
-- Chunks overlap correctly (last 50 tokens of chunk N = first 50 tokens of chunk N+1)
+**Format-specific splitting:**
+- Markdown / plain text → split on `\n\n`, detect `#` headings
+- DOCX → use `python-docx` paragraph objects directly (no regex needed)
+- PDF → use `pdfplumber` text blocks, treat each block as a unit
 
+**Verification:**
+- A 2,000-word article → chunks of up to 400 tokens each, none split mid-sentence
+- Short consecutive paragraphs are merged into a single chunk rather than stored as tiny isolated units
+- Each chunk carries a `section` field with the nearest heading (e.g. `"Chargebacks & Disputes"`)
+- Last sentence of chunk N appears as the first sentence of chunk N+1 (overlap check)
 ---
 
 ### 3.4 — Embedding Generation
 
 **What to build:**
 - Background worker that processes the embedding queue
-- Generates embeddings via OpenAI `text-embedding-3-small`
+- Generates embeddings via gemini 001 embedding model
 - Batch processing (up to 100 chunks per API call)
 - Stores embeddings in pgvector column
 
@@ -697,7 +705,7 @@ backend/app/workers/
 **What to build:**
 - Upgrade the basic RAG search from Phase 2 to use real embeddings
 - Similarity search with configurable threshold
-- Article metadata enrichment (title, category, tags)
+- Article metadata enrichment (title, category, tags, source section)
 - Relevance scoring and ranking
 
 **Files to modify:**
@@ -709,8 +717,8 @@ backend/app/agents/tools/rag_search.py   # Full implementation with real pgvecto
 **Verification:**
 - Add KB article: "When a payment is declined but funds are held, this is a temporary authorization hold..."
 - Submit ticket: "My payment was declined but money was taken"
-- RAG search returns the article with >0.85 similarity
-- Resolver Agent generates a response referencing the article content
+- RAG search returns the article with >0.85 similarity, including the matched `section` field
+- Resolver Agent generates a response referencing both the article content and its section heading
 
 ---
 

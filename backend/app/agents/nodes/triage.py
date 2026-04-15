@@ -50,6 +50,7 @@ async def triage_node(state: TicketAgentState) -> TicketAgentState:
             "subcategory": result.get('subcategory'),
             "priority": result.get('priority'),
             "urgency_score": result.get('urgency_score'),
+            "sentiment": result.get('sentiment'),
             "status": "triaged"
         }).eq("id", state['ticket_id']).execute()
     except Exception as e:

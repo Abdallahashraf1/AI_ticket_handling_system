@@ -9,12 +9,10 @@ logger = structlog.get_logger()
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
+    redirect_slashes=False,
 )
 
-origins = [
-    "http://localhost",
-    "http://localhost:3000",
-]
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,

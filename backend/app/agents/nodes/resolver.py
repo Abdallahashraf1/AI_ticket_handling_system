@@ -41,6 +41,7 @@ async def resolver_node(state: TicketAgentState) -> TicketAgentState:
         supabase.table('tickets').update({
             "status": "resolved",
             "ai_draft": draft_response,
+            "rag_context": rag_context,
             "resolved_at": datetime.now(timezone.utc).isoformat()
         }).eq("id", state['ticket_id']).execute()
     except Exception as e:

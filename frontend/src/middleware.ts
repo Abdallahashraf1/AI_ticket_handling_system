@@ -2,7 +2,12 @@ import { type NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
 export async function middleware(request: NextRequest) {
-  return await updateSession(request)
+  const response = await updateSession(request)
+  
+  // Inject x-pathname for layout active-link detection
+  response.headers.set('x-pathname', request.nextUrl.pathname)
+  
+  return response
 }
 
 export const config = {

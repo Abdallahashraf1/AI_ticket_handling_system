@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List
 from app.models.ticket import TicketCreate, TicketResponse
 from app.middleware.auth import get_current_user
@@ -6,7 +6,7 @@ from app.db.supabase_client import get_admin_client
 
 router = APIRouter()
 
-@router.post("/", response_model=TicketResponse)
+@router.post("", response_model=TicketResponse)
 async def create_ticket(ticket: TicketCreate, user: dict = Depends(get_current_user)):
     sb = get_admin_client()
     
@@ -43,7 +43,7 @@ async def create_ticket(ticket: TicketCreate, user: dict = Depends(get_current_u
     
     return new_ticket
 
-@router.get("/", response_model=List[TicketResponse])
+@router.get("", response_model=List[TicketResponse])
 async def list_tickets(user: dict = Depends(get_current_user)):
     sb = get_admin_client()
     
@@ -72,3 +72,30 @@ async def get_ticket(ticket_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Not authorized to view this ticket")
         
     return ticket
+
+@router.post("/{ticket_id}/feedback", response_model=TicketResponse)
+async def submit_feedback(
+    ticket_id: str, 
+    feedback: str = Query(...), 
+    score: int = Query(..., ge=1, le=5),
+    user: dict = Depends(get_current_user)
+):
+    sb = get_admin_client()
+    
+    # Verify ownership
+    ticket_query = sb.table("tickets").select("submitter_id").eq("id", ticket_id).single().execute()
+    if not ticket_query.data:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    if ticket_query.data["submitter_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized to provide feedback for this ticket")
+        
+    response = sb.table("tickets").update({
+        "customer_feedback": feedback,
+        "feedback_score": score
+    }).eq("id", ticket_id).execute()
+    
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to submit feedback")
+        
+    return response.data[0]

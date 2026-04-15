@@ -4,7 +4,10 @@ from app.config import settings
 celery_app = Celery(
     "tickets_worker",
     broker=settings.CELERY_BROKER_URL,
-    include=["app.workers.ticket_processor"]
+    include=[
+        "app.workers.ticket_processor",
+        "app.workers.embedding_worker"
+    ]
 )
 
 celery_app.conf.update(

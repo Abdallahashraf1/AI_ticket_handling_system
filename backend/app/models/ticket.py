@@ -28,5 +28,7 @@ class TicketResponse(BaseModel):
     resolution_type: Optional[str] = None
     ai_draft: Optional[str] = None
     final_response: Optional[str] = None
+    customer_feedback: Optional[str] = None
+    feedback_score: Optional[int] = None
     created_at: datetime
     updated_at: datetime

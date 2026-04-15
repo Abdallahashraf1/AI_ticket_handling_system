@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     
     REDIS_URL: str = "redis://redis:6379"
     CELERY_BROKER_URL: str = "redis://redis:6379"
+    READONLY_DATABASE_URL: str | None = None
+    ANALYTICS_CACHE_TTL_SECONDS: int = 300
+    SLA_CHECK_INTERVAL_SECONDS: int = 60
     
     # AI & Tracing
     GEMINI_API_KEY: str | None = None

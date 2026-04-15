@@ -1,0 +1,41 @@
+'use client'
+
+import NLQueryInput from '@/components/analytics/NLQueryInput'
+import QueryResult from '@/components/analytics/QueryResult'
+import KPICards from '@/components/analytics/KPICards'
+import TrendChart from '@/components/analytics/TrendChart'
+import { useAnalyticsDashboard, useAnalyticsQuery } from '@/hooks/useAnalytics'
+
+export default function ManagerAnalyticsPage() {
+  const dashboard = useAnalyticsDashboard()
+  const queryMutation = useAnalyticsQuery()
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Analytics</h1>
+
+      {dashboard.isLoading ? (
+        <div>Loading dashboard...</div>
+      ) : dashboard.data ? (
+        <>
+          <KPICards kpis={dashboard.data.kpis} />
+          <TrendChart title="Ticket Volume (Last 14 days)" data={dashboard.data.ticket_volume_trend} />
+        </>
+      ) : (
+        <div className="text-red-600">Failed to load dashboard metrics.</div>
+      )}
+
+      <NLQueryInput
+        onSubmit={async (question) => {
+          await queryMutation.mutateAsync(question)
+        }}
+        isLoading={queryMutation.isPending}
+      />
+      <QueryResult
+        data={queryMutation.data ?? null}
+        error={queryMutation.isError ? (queryMutation.error as Error).message : null}
+      />
+    </div>
+  )
+}
+

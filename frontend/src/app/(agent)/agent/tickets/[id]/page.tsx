@@ -1,10 +1,9 @@
 'use client'
 
 import React, { useState, useEffect, use } from 'react'
-import { 
-  MessageSquare, 
-  Clock, 
-  AlertCircle, 
+import {
+  MessageSquare,
+  AlertCircle,
   CheckCircle2,
   ChevronLeft,
   ShieldAlert,
@@ -18,7 +17,7 @@ import {
   Frown,
   Activity,
   ScrollText,
-  Users
+  Users,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -36,15 +35,13 @@ export default function AgentTicketDetail({ params }: { params: Promise<{ id: st
   useEffect(() => {
     async function fetchData() {
       const supabase = createClient()
-      
-      // Fetch ticket with submitter profile
+
       const { data: ticketData } = await supabase
         .from('tickets')
         .select('*, submitter:profiles!tickets_submitter_id_fkey(email, full_name)')
         .eq('id', id)
         .single()
 
-      // Fetch all comments (public + internal)
       const { data: commentsData } = await supabase
         .from('ticket_comments')
         .select('*, profiles(full_name)')
@@ -67,12 +64,11 @@ export default function AgentTicketDetail({ params }: { params: Promise<{ id: st
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-      alert("Session expired. Please log in again.")
+      alert('Session expired. Please log in again.')
       setSubmitting(false)
       return
     }
 
-    // 1. Insert the comment
     const { error: commentError } = await supabase
       .from('ticket_comments')
       .insert({
@@ -80,31 +76,27 @@ export default function AgentTicketDetail({ params }: { params: Promise<{ id: st
         author_id: user.id,
         author_type: 'agent',
         body: reply,
-        is_internal: isInternal
+        is_internal: isInternal,
       })
 
     if (commentError) {
-      console.error("Comment insertion failed:", commentError)
       alert(`Failed to save message: ${commentError.message}`)
       setSubmitting(false)
       return
     }
 
-    // 2. If it's a public reply, resolve the ticket
     if (!isInternal) {
       const { error: updateError } = await supabase
         .from('tickets')
-        .update({ 
+        .update({
           status: 'resolved',
-          resolved_at: new Date().toISOString()
+          resolved_at: new Date().toISOString(),
         })
         .eq('id', id)
-      
+
       if (updateError) {
-        console.error("Status update failed:", updateError)
         alert(`Failed to resolve ticket: ${updateError.message}`)
       } else {
-        // Refresh local ticket state to show "Resolved" badge immediately
         const { data: updatedTicket } = await supabase
           .from('tickets')
           .select('*, submitter:profiles!tickets_submitter_id_fkey(email, full_name)')
@@ -114,14 +106,13 @@ export default function AgentTicketDetail({ params }: { params: Promise<{ id: st
       }
     }
 
-    // 3. Clear input and refresh local comments timeline
     setReply('')
     const { data: updatedComments } = await supabase
       .from('ticket_comments')
       .select('*, profiles(full_name)')
       .eq('ticket_id', id)
       .order('created_at', { ascending: true })
-    
+
     if (updatedComments) setComments(updatedComments)
     setSubmitting(false)
   }
@@ -161,10 +152,9 @@ export default function AgentTicketDetail({ params }: { params: Promise<{ id: st
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-      {/* Header Navigation */}
       <div className="flex items-center justify-between">
-        <Link 
-          href="/agent/tickets" 
+        <Link
+          href="/agent/tickets"
           className="flex items-center text-gray-400 hover:text-white transition-colors group"
         >
           <div className="p-2 bg-gray-900 border border-gray-800 rounded-xl mr-3 group-hover:bg-gray-800 transition-all">
@@ -174,26 +164,22 @@ export default function AgentTicketDetail({ params }: { params: Promise<{ id: st
         </Link>
 
         <div className="flex items-center gap-3">
-            <div className={`px-4 py-2 rounded-2xl border flex items-center gap-2 ${
-                ticket.status === 'resolved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-            }`}>
-                {ticket.status === 'resolved' ? <CheckCircle2 size={16} /> : <Activity size={16} className="animate-pulse" />}
-                <span className="text-xs font-bold uppercase tracking-widest">{ticket.status.replace('_', ' ')}</span>
-            </div>
+          <div className={`px-4 py-2 rounded-2xl border flex items-center gap-2 ${
+            ticket.status === 'resolved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+          }`}>
+            {ticket.status === 'resolved' ? <CheckCircle2 size={16} /> : <Activity size={16} className="animate-pulse" />}
+            <span className="text-xs font-bold uppercase tracking-widest">{ticket.status.replace('_', ' ')}</span>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left Column: Ticket Display & Conversation */}
         <div className="lg:col-span-2 space-y-8">
-          
-          {/* Main Ticket Content */}
           <div className="bg-gray-900 border border-gray-800 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 p-8">
-                <ShieldAlert size={40} className="text-gray-800/20" />
+              <ShieldAlert size={40} className="text-gray-800/20" />
             </div>
-            
+
             <div className="space-y-6">
               <div>
                 <h1 className="text-3xl font-bold text-white leading-tight">{ticket.subject}</h1>
@@ -203,7 +189,7 @@ export default function AgentTicketDetail({ params }: { params: Promise<{ id: st
                   </div>
                   <div className="flex flex-col">
                     <span className="text-sm font-bold text-gray-200">{ticket.submitter?.full_name || 'Anonymous User'}</span>
-                    <span className="text-xs text-gray-500">{ticket.submitter?.email} • {new Date(ticket.created_at).toLocaleString()}</span>
+                    <span className="text-xs text-gray-500">{ticket.submitter?.email} - {new Date(ticket.created_at).toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -214,7 +200,6 @@ export default function AgentTicketDetail({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
-          {/* Conversation Timeline */}
           <div className="space-y-6">
             <h3 className="text-xl font-bold text-white flex items-center px-4">
               <MessageSquare size={20} className="mr-3 text-blue-500" />
@@ -223,27 +208,27 @@ export default function AgentTicketDetail({ params }: { params: Promise<{ id: st
 
             <div className="space-y-4">
               {comments.map((comment) => (
-                <div 
-                  key={comment.id} 
+                <div
+                  key={comment.id}
                   className={`p-6 rounded-3xl border transition-all duration-300 ${
-                    comment.is_internal 
-                      ? 'bg-amber-500/5 border-amber-500/20 shadow-[0_0_30px_rgba(245,158,11,0.03)]' 
-                      : comment.author_type === 'ai' 
-                        ? 'bg-blue-600/5 border-blue-500/20' 
+                    comment.is_internal
+                      ? 'bg-amber-500/5 border-amber-500/20 shadow-[0_0_30px_rgba(245,158,11,0.03)]'
+                      : comment.author_type === 'ai'
+                        ? 'bg-blue-600/5 border-blue-500/20'
                         : 'bg-gray-900 border-gray-800'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                        {comment.author_type === 'ai' ? (
-                            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
-                                <Zap size={14} className="text-white" />
-                            </div>
-                        ) : (
-                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${comment.is_internal ? 'bg-amber-500' : 'bg-gray-800'}`}>
-                                <Users size={14} className="text-white" />
-                            </div>
-                        )}
+                      {comment.author_type === 'ai' ? (
+                        <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
+                          <Zap size={14} className="text-white" />
+                        </div>
+                      ) : (
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${comment.is_internal ? 'bg-amber-500' : 'bg-gray-800'}`}>
+                          <Users size={14} className="text-white" />
+                        </div>
+                      )}
                       <span className={`text-xs font-bold uppercase tracking-widest ${
                         comment.author_type === 'ai' ? 'text-blue-400' : comment.is_internal ? 'text-amber-400' : 'text-gray-400'
                       }`}>
@@ -259,55 +244,50 @@ export default function AgentTicketDetail({ params }: { params: Promise<{ id: st
               ))}
             </div>
 
-            {/* Reply Input */}
             <div className="bg-gray-900 border border-gray-800 rounded-[2.5rem] p-6 shadow-2xl space-y-4 border-t-4 border-t-blue-600">
-               <textarea 
+              <textarea
                 rows={4}
                 value={reply}
                 onChange={e => setReply(e.target.value)}
                 placeholder="Draft your manual response or internal note..."
                 className="w-full bg-gray-950 border border-gray-800 rounded-2xl p-4 !text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm placeholder:text-gray-600"
-               />
-               <div className="flex justify-between items-center">
-                  <div className="flex gap-2">
-                    <button 
-                        onClick={() => handleSendReply(true)}
-                        disabled={submitting || !reply}
-                        className="px-6 py-2.5 bg-gray-800 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-amber-500/10 transition-all disabled:opacity-50"
-                    >
-                        Save Internal Note
-                    </button>
-                  </div>
-                  
-                  {ticket.status !== 'resolved' && (
-                    <button 
-                      onClick={() => handleSendReply(false)}
-                      disabled={submitting || !reply}
-                      className="flex items-center gap-2 px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all disabled:opacity-50"
-                    >
-                      {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send size={16} />}
-                      Send to Customer
-                    </button>
-                  )}
-               </div>
+              />
+              <div className="flex justify-between items-center">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleSendReply(true)}
+                    disabled={submitting || !reply}
+                    className="px-6 py-2.5 bg-gray-800 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-amber-500/10 transition-all disabled:opacity-50"
+                  >
+                    Save Internal Note
+                  </button>
+                </div>
+
+                {ticket.status !== 'resolved' && (
+                  <button
+                    onClick={() => handleSendReply(false)}
+                    disabled={submitting || !reply}
+                    className="flex items-center gap-2 px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all disabled:opacity-50"
+                  >
+                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send size={16} />}
+                    Send to Customer
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Right Column: AI Insights & Sidebar */}
         <div className="space-y-8">
-          
-          {/* Intelligence Scorecard */}
           <div className="bg-gray-900 border border-gray-800 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden group">
             <div className="absolute -top-10 -right-10 w-32 h-32 bg-blue-600/10 rounded-full blur-3xl" />
-            
+
             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center">
               <BrainCircuit size={16} className="mr-2 text-blue-500" />
               AI Intelligence Report
             </h3>
 
             <div className="space-y-6">
-              {/* Sentiment */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-gray-500 font-bold uppercase">Customer Mood</span>
@@ -316,35 +296,33 @@ export default function AgentTicketDetail({ params }: { params: Promise<{ id: st
                 <div className="flex items-center gap-3 bg-gray-950/50 p-4 rounded-2xl border border-gray-800">
                   {getSentimentIcon(ticket.sentiment)}
                   <span className="text-sm font-medium text-gray-200">
-                    {ticket.sentiment === 'frustrated' ? 'Customer needs immediate attention.' : 
-                     ticket.sentiment === 'positive' ? 'Customer is receptive and polite.' : 
-                     'Standard objective communication.'}
+                    {ticket.sentiment === 'frustrated' ? 'Customer needs immediate attention.'
+                      : ticket.sentiment === 'positive' ? 'Customer is receptive and polite.'
+                      : 'Standard objective communication.'}
                   </span>
                 </div>
               </div>
 
-              {/* Urgency */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-gray-500 font-bold uppercase">Urgency Score</span>
-                  <span className="text-xs font-bold text-white">{(ticket.urgency_score * 100).toFixed(0)}%</span>
+                  <span className="text-xs font-bold text-white">{((ticket.urgency_score || 0) * 100).toFixed(0)}%</span>
                 </div>
                 <div className="h-2 w-full bg-gray-950 rounded-full overflow-hidden border border-gray-800">
-                  <div 
-                    className={`h-full transition-all duration-1000 ${getUrgencyColor(ticket.urgency_score)}`}
-                    style={{ width: `${ticket.urgency_score * 100}%` }}
+                  <div
+                    className={`h-full transition-all duration-1000 ${getUrgencyColor(ticket.urgency_score || 0)}`}
+                    style={{ width: `${(ticket.urgency_score || 0) * 100}%` }}
                   />
                 </div>
               </div>
 
-              {/* Category */}
               <div className="pt-2">
                 <span className="text-[10px] text-gray-600 font-bold uppercase block mb-3">Classified Category</span>
                 <div className="flex flex-wrap gap-2">
                   <span className="px-3 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg text-[10px] font-bold uppercase tracking-widest">
                     {ticket.category || 'General'}
                   </span>
-                   <span className="px-3 py-1 bg-gray-800 border border-gray-700 text-gray-400 rounded-lg text-[10px] font-bold uppercase tracking-widest">
+                  <span className="px-3 py-1 bg-gray-800 border border-gray-700 text-gray-400 rounded-lg text-[10px] font-bold uppercase tracking-widest">
                     {ticket.subcategory || 'Standard'}
                   </span>
                 </div>
@@ -352,42 +330,41 @@ export default function AgentTicketDetail({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
-          {/* RAG Context Monitor */}
           <div className="bg-gray-950 border border-gray-800 rounded-[2rem] p-8 shadow-2xl space-y-6">
             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest flex items-center">
               <ScrollText size={16} className="mr-2 text-purple-500" />
               Retrieved RAG Evidence
             </h3>
-            
+
             {ticket.rag_context ? (
-                <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                    {ticket.rag_context.split('---').map((chunk: string, idx: number) => {
-                        const [header, ...contentLines] = chunk.trim().split('\n');
-                        return (
-                            <div key={idx} className="bg-gray-900/50 border border-gray-800 rounded-2xl p-4 space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-bold text-purple-400 uppercase tracking-tighter truncate max-w-[200px]">
-                                        {header.replace('[', '').replace(']', '')}
-                                    </span>
-                                    <span className="px-1.5 py-0.5 bg-purple-500/10 rounded text-[8px] text-purple-500 font-bold">SOURCE CHUNK</span>
-                                </div>
-                                <div className="text-[11px] text-gray-400 leading-relaxed font-mono italic whitespace-pre-wrap">
-                                    {contentLines.join('\n').trim()}
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
+              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                {ticket.rag_context.split('---').map((chunk: string, idx: number) => {
+                  const [header, ...contentLines] = chunk.trim().split('\n')
+                  return (
+                    <div key={idx} className="bg-gray-900/50 border border-gray-800 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-purple-400 uppercase tracking-tighter truncate max-w-[200px]">
+                          {header.replace('[', '').replace(']', '')}
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-purple-500/10 rounded text-[8px] text-purple-500 font-bold">SOURCE CHUNK</span>
+                      </div>
+                      <div className="text-[11px] text-gray-400 leading-relaxed font-mono italic whitespace-pre-wrap">
+                        {contentLines.join('\n').trim()}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             ) : (
-                <div className="text-center py-6 bg-gray-900/50 rounded-2xl border border-dashed border-gray-800">
-                    <Info size={16} className="mx-auto text-gray-700 mb-2" />
-                    <p className="text-xs text-gray-600 font-bold uppercase">No RAG evidence found</p>
-                </div>
+              <div className="text-center py-6 bg-gray-900/50 rounded-2xl border border-dashed border-gray-800">
+                <Info size={16} className="mx-auto text-gray-700 mb-2" />
+                <p className="text-xs text-gray-600 font-bold uppercase">No RAG evidence found</p>
+              </div>
             )}
           </div>
-
         </div>
       </div>
     </div>
   )
 }
+

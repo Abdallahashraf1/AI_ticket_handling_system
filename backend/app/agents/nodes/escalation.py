@@ -37,12 +37,19 @@ async def escalation_node(state: TicketAgentState) -> TicketAgentState:
 
     # 3. Update Supabase
     supabase = get_supabase()
+    team_id = None
+    try:
+        team_lookup = supabase.table("teams").select("id").eq("name", assigned_team).limit(1).execute()
+        if team_lookup.data:
+            team_id = team_lookup.data[0]["id"]
+    except Exception as e:
+        logger.warning("Failed to map assigned team name to ID", error=str(e), assigned_team=assigned_team)
     
     try:
         supabase.table('tickets').update({
             "status": "escalated",
             "ai_draft": escalation_reason,
-            "assigned_team_id": None, 
+            "assigned_team_id": team_id,
             "sla_deadline": sla_deadline.isoformat()
         }).eq("id", state['ticket_id']).execute()
     except Exception as e:

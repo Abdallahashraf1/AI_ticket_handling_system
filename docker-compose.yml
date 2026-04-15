@@ -25,6 +25,17 @@ services:
       - redis
     command: celery -A app.celery_app worker --loglevel=info
 
+  sla-checker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+    command: python -m app.workers.sla_checker
+
   redis:
     image: redis:7-alpine
     ports:

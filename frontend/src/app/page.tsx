@@ -16,7 +16,11 @@ export default async function Home() {
     .eq("id", user.id)
     .single();
 
-  if (profile && ["agent", "manager", "admin"].includes(profile.role)) {
+  if (profile && ["manager", "admin"].includes(profile.role)) {
+    redirect("/manager/overview");
+  }
+
+  if (profile && profile.role === "agent") {
     redirect("/agent/dashboard");
   }
 

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { LogOut, BookOpen, LayoutDashboard, Settings, Ticket } from 'lucide-react'
 import { headers } from 'next/headers'
+import NotificationBell from '@/components/layout/NotificationBell'
 
 export default async function AgentLayout({
   children,
@@ -103,6 +104,9 @@ export default async function AgentLayout({
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/5 rounded-full blur-[120px] pointer-events-none" />
         
         <div className="relative z-10 py-10 px-12">
+          <div className="flex justify-end mb-4">
+            <NotificationBell />
+          </div>
           {children}
         </div>
       </main>

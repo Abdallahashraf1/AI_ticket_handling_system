@@ -1,95 +1,120 @@
-import { createClient } from '@/lib/supabase/server'
+'use client'
+
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { use, useCallback, useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import LiveTicketStatus from '@/components/tickets/LiveTicketStatus'
+import TicketFeedback from '@/components/tickets/TicketFeedback'
 
+type CustomerTicketDetail = {
+  id: string
+  subject: string
+  status: string
+  category?: string | null
+  priority?: string | null
+  body: string
+  final_response?: string | null
+}
 
-export default async function TicketDetail({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) return null
+type TicketComment = {
+  id: string
+  body: string
+  author_type: string
+  created_at: string
+  profiles?: { full_name?: string } | null
+}
 
-  const { id } = await params
+export default function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const [ticket, setTicket] = useState<CustomerTicketDetail | null>(null)
+  const [comments, setComments] = useState<TicketComment[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const { data: ticket, error } = await supabase
-    .from('tickets')
-    .select('*')
-    .eq('id', id)
-    .single()
+  const fetchTicket = useCallback(async () => {
+    const supabase = createClient()
+    const { data: ticketData } = await supabase.from('tickets').select('*').eq('id', id).single()
+    const { data: commentsData } = await supabase
+      .from('ticket_comments')
+      .select('*, profiles(full_name)')
+      .eq('ticket_id', id)
+      .eq('is_internal', false)
+      .order('created_at', { ascending: true })
 
-  if (error || !ticket) {
-    notFound()
-  }
+    setTicket(ticketData)
+    setComments(commentsData || [])
+    setLoading(false)
+  }, [id])
 
-  const { data: comments } = await supabase
-    .from('ticket_comments')
-    .select('*, profiles(full_name)')
-    .eq('ticket_id', id)
-    .eq('is_internal', false)
-    .order('created_at', { ascending: true })
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchTicket()
+  }, [fetchTicket])
+
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`ticket-detail-${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets', filter: `id=eq.${id}` }, () => {
+        fetchTicket()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ticket_comments', filter: `ticket_id=eq.${id}` }, () => {
+        fetchTicket()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [id, fetchTicket])
+
+  if (loading) return <div>Loading ticket...</div>
+  if (!ticket) return <div>Ticket not found.</div>
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-6">
-        <Link href="/tickets" className="text-sm font-medium text-gray-500 hover:text-gray-900">
-          &larr; Back to Tickets
-        </Link>
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div>
+        <Link href="/tickets" className="text-sm font-medium text-gray-500 hover:text-gray-900">&larr; Back to Tickets</Link>
       </div>
 
-      <div className="bg-white border shadow-sm sm:rounded-lg mb-8">
-        <div className="px-4 py-5 sm:px-6 flex justify-between items-center bg-gray-50 border-b border-gray-200">
+      <div className="bg-white border border-gray-200 rounded-2xl">
+        <div className="px-5 py-4 flex justify-between items-center border-b border-gray-200">
           <div>
-            <h3 className="text-lg leading-6 font-medium text-gray-900">
-              {ticket.subject}
-            </h3>
-            <p className="mt-1 max-w-2xl text-sm text-gray-500">
-              Ticket ID: {ticket.id}
-            </p>
+            <h2 className="text-xl font-semibold text-gray-900">{ticket.subject}</h2>
+            <p className="text-sm text-gray-500 mt-1">Ticket ID: {ticket.id}</p>
           </div>
-          <div>
-            <LiveTicketStatus ticketId={ticket.id} initialStatus={ticket.status} />
-          </div>
+          <LiveTicketStatus ticketId={ticket.id} initialStatus={ticket.status} />
         </div>
-        <div className="border-t border-gray-200 px-4 py-5 sm:p-0">
-          <dl className="sm:divide-y sm:divide-gray-200">
-            <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Category & Priority</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {ticket.category || 'General'} • {ticket.priority} priority
-              </dd>
+        <div className="px-5 py-4 space-y-3">
+          <div className="text-sm text-gray-700">
+            <span className="font-medium">Category:</span> {ticket.category || 'General'} · {ticket.priority || 'medium'} priority
+          </div>
+          <div className="text-sm text-gray-800 whitespace-pre-wrap">{ticket.body}</div>
+          {ticket.final_response ? (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+              <div className="text-xs font-semibold text-emerald-700 mb-1">Resolution</div>
+              <div className="text-sm text-emerald-900 whitespace-pre-wrap">{ticket.final_response}</div>
             </div>
-            <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Description</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 whitespace-pre-wrap">
-                {ticket.body}
-              </dd>
-            </div>
-          </dl>
+          ) : null}
         </div>
       </div>
 
-      <div className="space-y-6">
-        <h4 className="text-lg font-medium text-gray-900">Conversation</h4>
-        
-        {comments && comments.length > 0 ? (
-          comments.map(comment => (
-            <div key={comment.id} className={`bg-white border shadow-sm sm:rounded-lg p-4 ${comment.author_type === 'ai' || comment.author_type === 'agent' ? 'border-indigo-200 bg-indigo-50' : 'border-gray-200'}`}>
-              <div className="flex items-center mb-2">
-                <span className="font-medium text-sm text-gray-900">
-                  {comment.author_type === 'ai' ? 'AI Assistant' : (comment.profiles?.full_name || 'Support')}
-                </span>
-                <span className="ml-2 text-xs text-gray-500">
-                  {new Date(comment.created_at).toLocaleString()}
-                </span>
+      {(ticket.status === 'resolved' || ticket.status === 'closed') ? (
+        <TicketFeedback ticketId={ticket.id} onDone={fetchTicket} />
+      ) : null}
+
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium text-gray-900">Timeline</h3>
+        {comments.length > 0 ? (
+          comments.map((comment) => (
+            <div key={comment.id} className="bg-white border border-gray-200 rounded-xl p-4">
+              <div className="text-xs text-gray-500 mb-1">
+                {comment.author_type === 'ai' ? 'AI Assistant' : comment.profiles?.full_name || 'Support'} · {new Date(comment.created_at).toLocaleString()}
               </div>
-              <div className="text-sm text-gray-700 whitespace-pre-wrap">
-                {comment.body}
-              </div>
+              <div className="text-sm text-gray-700 whitespace-pre-wrap">{comment.body}</div>
             </div>
           ))
         ) : (
-          <p className="text-sm text-gray-500 text-center py-4">No replies yet.</p>
+          <p className="text-sm text-gray-500">No replies yet.</p>
         )}
       </div>
     </div>

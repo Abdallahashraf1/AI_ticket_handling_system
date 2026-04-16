@@ -1,12 +1,13 @@
+from datetime import datetime, timezone
 import structlog
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.output_parsers import JsonOutputParser
 from app.agents.state import TicketAgentState
 from app.agents.prompts.escalation import ESCALATION_SYSTEM_PROMPT
-from app.agents.tools.sla_calculator import calculate_sla_deadline
 from app.agents.tools.notifier import send_notification
 from app.db.supabase_client import get_supabase
+from app.services.sla_service import SLAService
 
 logger = structlog.get_logger()
 
@@ -33,7 +34,15 @@ async def escalation_node(state: TicketAgentState) -> TicketAgentState:
         assigned_team = "General Support"
 
     # 2. SLA Calculation
-    sla_deadline = calculate_sla_deadline(state.get('priority', 'medium'))
+    sla_deadline_iso = state.get("sla_deadline")
+    if not sla_deadline_iso:
+        try:
+            sla_deadline_iso = SLAService().calculate_deadline(
+                state.get('priority', 'medium'),
+                datetime.now(timezone.utc),
+            ).isoformat()
+        except Exception as e:
+            logger.warning("Failed to calculate SLA deadline in escalation", error=str(e), ticket_id=state['ticket_id'])
 
     # 3. Update Supabase
     supabase = get_supabase()
@@ -50,7 +59,7 @@ async def escalation_node(state: TicketAgentState) -> TicketAgentState:
             "status": "escalated",
             "ai_draft": escalation_reason,
             "assigned_team_id": team_id,
-            "sla_deadline": sla_deadline.isoformat()
+            "sla_deadline": sla_deadline_iso
         }).eq("id", state['ticket_id']).execute()
     except Exception as e:
         logger.error("Failed to update ticket in escalation", error=str(e))
@@ -74,5 +83,5 @@ async def escalation_node(state: TicketAgentState) -> TicketAgentState:
     return {
         "escalation_reason": escalation_reason,
         "assigned_team": assigned_team,
-        "sla_deadline": sla_deadline
+        "sla_deadline": sla_deadline_iso
     }

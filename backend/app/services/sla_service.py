@@ -11,7 +11,7 @@ from app.services.notification_service import create_notification, notify_team, 
 
 logger = structlog.get_logger()
 
-OPEN_TICKET_STATUSES = ["new", "triaging", "routing", "resolving", "escalated", "pending_review", "reopened"]
+OPEN_TICKET_STATUSES = ["new", "triaged", "triaging", "routing", "resolving", "escalated", "pending_review", "reopened"]
 BUSINESS_START_HOUR = 9
 BUSINESS_END_HOUR = 17
 BUSINESS_DAYS = {0, 1, 2, 3, 4}  # Monday-Friday
@@ -240,4 +240,3 @@ class SLAService:
             "compliance_rate": compliance_rate,
             "priority_metrics": priority_metrics,
         }
-

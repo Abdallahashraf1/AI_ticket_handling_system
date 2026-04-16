@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { BarChart3, LogOut, Users, ChartColumn, FileBarChart2, AlarmClockCheck } from 'lucide-react'
-import { headers } from 'next/headers'
+import { LogOut } from 'lucide-react'
 import NotificationBell from '@/components/layout/NotificationBell'
+import ManagerNav from '@/components/layout/ManagerNav'
 
 export default async function ManagerLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -20,31 +20,11 @@ export default async function ManagerLayout({ children }: { children: React.Reac
     redirect('/agent/dashboard')
   }
 
-  const headerList = await headers()
-  const fullPath = headerList.get('x-pathname') || ''
-  const nav = [
-    { name: 'Overview', href: '/manager/overview', icon: BarChart3 },
-    { name: 'Analytics', href: '/manager/analytics', icon: ChartColumn },
-    { name: 'Reports', href: '/manager/reports', icon: FileBarChart2 },
-    { name: 'SLA', href: '/manager/sla', icon: AlarmClockCheck },
-    { name: 'Teams', href: '/manager/teams', icon: Users },
-  ]
-
   return (
     <div className="min-h-screen bg-gray-50 flex">
       <aside className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col">
         <Link href="/manager/overview" className="text-xl font-bold mb-8">Manager Portal</Link>
-        <nav className="space-y-2">
-          {nav.map((item) => {
-            const active = fullPath.startsWith(item.href)
-            return (
-              <Link key={item.name} href={item.href} className={`flex items-center gap-2 px-3 py-2 rounded-lg ${active ? 'bg-black text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-                <item.icon className="h-4 w-4" />
-                {item.name}
-              </Link>
-            )
-          })}
-        </nav>
+        <ManagerNav />
         <div className="mt-auto space-y-4">
           <NotificationBell />
           <form action="/auth/signout" method="post">

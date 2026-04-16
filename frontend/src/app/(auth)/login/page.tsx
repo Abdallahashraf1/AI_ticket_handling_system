@@ -12,13 +12,26 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
+  const resolvePostLoginPath = async (userId: string) => {
+    const supabase = createClient()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+
+    if (profile?.role === 'agent') return '/agent/dashboard'
+    if (profile && ['manager', 'admin'].includes(profile.role)) return '/manager/overview'
+    return '/tickets'
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
     
     const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
@@ -28,8 +41,9 @@ export default function Login() {
       setLoading(false)
       return
     }
-    
-    router.push('/tickets')
+
+    const destination = data.user ? await resolvePostLoginPath(data.user.id) : '/'
+    router.push(destination)
     router.refresh()
   }
 

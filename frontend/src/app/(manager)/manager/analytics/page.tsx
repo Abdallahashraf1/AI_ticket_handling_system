@@ -27,7 +27,11 @@ export default function ManagerAnalyticsPage() {
 
       <NLQueryInput
         onSubmit={async (question) => {
-          await queryMutation.mutateAsync(question)
+          try {
+            await queryMutation.mutateAsync(question)
+          } catch {
+            // The mutation already exposes its error state to QueryResult.
+          }
         }}
         isLoading={queryMutation.isPending}
       />
@@ -38,4 +42,3 @@ export default function ManagerAnalyticsPage() {
     </div>
   )
 }
-

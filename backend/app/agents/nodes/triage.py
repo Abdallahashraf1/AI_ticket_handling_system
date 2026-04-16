@@ -1,4 +1,4 @@
-import json
+from datetime import datetime, timezone
 import structlog
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -6,7 +6,9 @@ from langchain_core.output_parsers import JsonOutputParser
 from app.agents.state import TicketAgentState
 from app.agents.prompts.triage import TRIAGE_SYSTEM_PROMPT
 from app.agents.tools.duplicate_detector import find_duplicates
+from app.db.redis import get_redis
 from app.db.supabase_client import get_supabase
+from app.services.sla_service import SLAService
 
 logger = structlog.get_logger()
 
@@ -40,10 +42,23 @@ async def triage_node(state: TicketAgentState) -> TicketAgentState:
             "reasoning": "Fallback due to LLM error"
         }
 
-    # 3. Update Supabase
+    # 3. Calculate SLA once priority is known so every triaged ticket is SLA-tracked.
     supabase = get_supabase()
+    sla_deadline_iso = None
+    try:
+        ticket_response = supabase.table('tickets').select('created_at').eq("id", state['ticket_id']).single().execute()
+        created_at_raw = (ticket_response.data or {}).get('created_at')
+        created_at = (
+            datetime.fromisoformat(created_at_raw.replace("Z", "+00:00"))
+            if created_at_raw
+            else datetime.now(timezone.utc)
+        )
+        sla_deadline = SLAService().calculate_deadline(result.get('priority') or 'medium', created_at)
+        sla_deadline_iso = sla_deadline.isoformat()
+    except Exception as e:
+        logger.warning("Failed to calculate SLA deadline in triage", error=str(e), ticket_id=state['ticket_id'])
     
-    # We update the ticket record
+    # 4. Update Supabase
     try:
         supabase.table('tickets').update({
             "category": result.get('category'),
@@ -51,6 +66,7 @@ async def triage_node(state: TicketAgentState) -> TicketAgentState:
             "priority": result.get('priority'),
             "urgency_score": result.get('urgency_score'),
             "sentiment": result.get('sentiment'),
+            "sla_deadline": sla_deadline_iso,
             "status": "triaged"
         }).eq("id", state['ticket_id']).execute()
     except Exception as e:
@@ -64,13 +80,21 @@ async def triage_node(state: TicketAgentState) -> TicketAgentState:
         "actor_id": "agent-triage"
     }
     supabase.table('ticket_events').insert(event_payload).execute()
+
+    # Dashboard data is cached in Redis; clear it when ticket analytics fields change.
+    try:
+        redis_client = await get_redis()
+        await redis_client.delete("analytics:dashboard:default")
+    except Exception as e:
+        logger.warning("Failed to invalidate analytics dashboard cache", error=str(e))
     
-    # 4. Update state and return
+    # 5. Update state and return
     return {
         "duplicate_of": dup_id,
         "category": result.get('category'),
         "subcategory": result.get('subcategory'),
         "priority": result.get('priority'),
         "urgency_score": result.get('urgency_score'),
-        "sentiment": result.get('sentiment')
+        "sentiment": result.get('sentiment'),
+        "sla_deadline": sla_deadline_iso
     }

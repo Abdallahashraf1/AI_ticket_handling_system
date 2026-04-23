@@ -1,7 +1,9 @@
 'use client'
 
-import SLAChart from '@/components/analytics/SLAChart'
+import dynamic from 'next/dynamic'
 import { useSlaDashboard, useSlaPolicies } from '@/hooks/useAnalytics'
+
+const SLAChart = dynamic(() => import('@/components/analytics/SLAChart'), { ssr: false })
 
 export default function ManagerSLAPage() {
   const dashboard = useSlaDashboard()
@@ -64,4 +66,3 @@ export default function ManagerSLAPage() {
     </div>
   )
 }
-

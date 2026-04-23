@@ -1,13 +1,13 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
 
 class TicketCreate(BaseModel):
-    subject: str
-    body: str
-    category: Optional[str] = None
-    priority: Optional[str] = None
+    subject: str = Field(min_length=3, max_length=200)
+    body: str = Field(min_length=5, max_length=5000)
+    category: Optional[str] = Field(default=None, max_length=100)
+    priority: Optional[str] = Field(default=None, pattern="^(critical|high|medium|low)$")
     attachments: Optional[List[str]] = []
 
 class TicketResponse(BaseModel):

@@ -21,6 +21,7 @@ FORBIDDEN_SQL_PATTERN = re.compile(
     r"\b(insert|update|delete|drop|alter|truncate|grant|revoke|create|copy|execute)\b",
     re.IGNORECASE,
 )
+FORBIDDEN_SQL_COMMENT_PATTERN = re.compile(r"(--|/\*)")
 TABLE_PATTERN = re.compile(r"\b(?:from|join)\s+([a-zA-Z_][\w\.]*)", re.IGNORECASE)
 LIMIT_PATTERN = re.compile(r"\blimit\s+(\d+)\b", re.IGNORECASE)
 
@@ -61,6 +62,8 @@ class AnalyticsService:
 
         if FORBIDDEN_SQL_PATTERN.search(lowered):
             raise AnalyticsValidationError("Mutation/DDL statements are not allowed")
+        if FORBIDDEN_SQL_COMMENT_PATTERN.search(query):
+            raise AnalyticsValidationError("SQL comments are not allowed")
 
         if ";" in query:
             raise AnalyticsValidationError("Multiple SQL statements are not allowed")

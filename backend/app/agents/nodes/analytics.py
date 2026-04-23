@@ -3,23 +3,25 @@ from typing import Any, Dict
 import structlog
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import JsonOutputParser
-from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.agents.prompts.analytics import ANALYTICS_SYSTEM_PROMPT
+from app.services.llm_resilience import invoke_json_llm
 
 logger = structlog.get_logger()
 
 
 async def run_analytics_query(question: str) -> Dict[str, Any]:
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
     parser = JsonOutputParser()
-    chain = llm | parser
     try:
-        result = await chain.ainvoke(
+        result = await invoke_json_llm(
+            model="gemini-2.5-flash",
+            temperature=0,
+            parser=parser,
+            messages=
             [
                 SystemMessage(content=ANALYTICS_SYSTEM_PROMPT),
                 HumanMessage(content=f"Question: {question}"),
-            ]
+            ],
         )
         return {
             "sql_query": result.get("sql_query", ""),
@@ -29,4 +31,3 @@ async def run_analytics_query(question: str) -> Dict[str, Any]:
     except Exception as exc:
         logger.error("analytics_llm_generation_failed", error=str(exc))
         raise
-

@@ -77,7 +77,7 @@ export default function AgentTicketQueuePage() {
       } else {
         const data: QueueTicket[] = await response.json()
         const handled = data.filter(
-          (ticket) => !['escalated', 'pending_review', 'reopened'].includes(ticket.status)
+          (ticket) => ['resolved', 'closed'].includes(ticket.status)
         )
         if (requestId === requestIdRef.current) {
           setItems(handled)
@@ -141,7 +141,7 @@ export default function AgentTicketQueuePage() {
         <h1 className="text-3xl font-bold text-white">Agent Tickets</h1>
         <p className="text-gray-400 mt-1">
           {mode === 'queue'
-            ? 'Escalated and pending review tickets, sorted by SLA urgency.'
+            ? 'Triaged, escalated, reopened, and pending review tickets, sorted by SLA urgency.'
             : 'Resolved tickets for review, including AI responses and handling history.'}
         </p>
       </div>

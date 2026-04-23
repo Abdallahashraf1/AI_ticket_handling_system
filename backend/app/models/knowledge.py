@@ -4,18 +4,18 @@ from datetime import datetime
 
 
 class ArticleCreate(BaseModel):
-    title: str
-    content: str
-    category: Optional[str] = None
+    title: str = Field(min_length=3, max_length=200)
+    content: str = Field(min_length=10, max_length=20000)
+    category: Optional[str] = Field(default=None, max_length=100)
     tags: Optional[List[str]] = []
     status: str = "draft"
     source_type: str = "manual"
 
 
 class ArticleUpdate(BaseModel):
-    title: Optional[str] = None
-    content: Optional[str] = None
-    category: Optional[str] = None
+    title: Optional[str] = Field(default=None, min_length=3, max_length=200)
+    content: Optional[str] = Field(default=None, min_length=10, max_length=20000)
+    category: Optional[str] = Field(default=None, max_length=100)
     tags: Optional[List[str]] = None
     status: Optional[str] = None
 

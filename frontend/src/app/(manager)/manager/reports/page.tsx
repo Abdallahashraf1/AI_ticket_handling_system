@@ -1,8 +1,10 @@
 'use client'
 
-import SLAChart from '@/components/analytics/SLAChart'
-import TrendChart from '@/components/analytics/TrendChart'
+import dynamic from 'next/dynamic'
 import { useAnalyticsDashboard, useSlaDashboard } from '@/hooks/useAnalytics'
+
+const SLAChart = dynamic(() => import('@/components/analytics/SLAChart'), { ssr: false })
+const TrendChart = dynamic(() => import('@/components/analytics/TrendChart'), { ssr: false })
 
 export default function ManagerReportsPage() {
   const dashboard = useAnalyticsDashboard()
@@ -29,4 +31,3 @@ export default function ManagerReportsPage() {
     </div>
   )
 }
-

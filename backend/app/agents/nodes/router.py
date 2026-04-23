@@ -1,11 +1,11 @@
 import json
 import structlog
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.output_parsers import JsonOutputParser
 from app.agents.state import TicketAgentState
 from app.agents.prompts.router import ROUTER_SYSTEM_PROMPT
 from app.db.supabase_client import get_supabase
+from app.services.llm_resilience import LLMServiceUnavailable, invoke_json_llm
 
 logger = structlog.get_logger()
 
@@ -13,19 +13,17 @@ async def router_node(state: TicketAgentState) -> TicketAgentState:
     logger.info("Starting router_node", ticket_id=state['ticket_id'])
     
     # 1. Invoke LLM for routing
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
     messages = [
         SystemMessage(content=ROUTER_SYSTEM_PROMPT),
         HumanMessage(content=f"Ticket Subject: {state['subject']}\nTicket Body: {state['body']}\nCategory: {state['category']}\nPriority: {state['priority']}")
     ]
     
     parser = JsonOutputParser()
-    chain = llm | parser
     
     try:
-        result = await chain.ainvoke(messages)
+        result = await invoke_json_llm(model="gemini-2.5-flash", temperature=0, messages=messages, parser=parser)
         decision = result.get('decision', 'escalate')
-    except Exception as e:
+    except LLMServiceUnavailable as e:
         logger.error("Error invoking LLM in router", error=str(e))
         decision = "escalate" # Default to escalate on failure
 

@@ -9,6 +9,7 @@ from typing import List, Optional
 
 from app.models.knowledge import ArticleCreate, ArticleUpdate, ArticleResponse, FeedbackCreate
 from app.middleware.auth import get_current_user
+from app.services.input_sanitizer import sanitize_payload, sanitize_text
 from app.services import knowledge_service
 from app.services.document_parser import parse_text
 
@@ -27,14 +28,15 @@ async def create_article(body: ArticleCreate, user: dict = Depends(get_current_u
     if user["role"] not in ("agent", "manager", "admin"):
         raise HTTPException(status_code=403, detail="Only agents can create KB articles")
 
+    payload = sanitize_payload(body.model_dump())
     article = knowledge_service.create_article(
-        title=body.title,
-        content=body.content,
+        title=payload["title"],
+        content=payload["content"],
         author_id=user["id"],
-        category=body.category,
-        tags=body.tags,
-        status=body.status,
-        source_type=body.source_type,
+        category=payload.get("category"),
+        tags=payload.get("tags"),
+        status=payload.get("status"),
+        source_type=payload.get("source_type"),
     )
 
     if body.status == "active":
@@ -73,7 +75,7 @@ async def update_article(article_id: str, body: ArticleUpdate, user: dict = Depe
     if user["role"] not in ("agent", "manager", "admin"):
         raise HTTPException(status_code=403, detail="Only agents can update KB articles")
 
-    updates = body.model_dump(exclude_none=True)
+    updates = sanitize_payload(body.model_dump(exclude_none=True))
     if not updates:
         raise HTTPException(status_code=422, detail="No fields to update")
 
@@ -123,10 +125,10 @@ async def upload_document(
     title = file.filename.rsplit(".", 1)[0].replace("_", " ").replace("-", " ").title()
 
     article = knowledge_service.create_article(
-        title=title,
-        content=text_content,
+        title=sanitize_text(title) or title,
+        content=sanitize_text(text_content) or text_content,
         author_id=user["id"],
-        category=category,
+        category=sanitize_text(category),
         status="active",
         source_type="upload",
     )

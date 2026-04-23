@@ -8,6 +8,7 @@ import structlog
 from app.db.supabase_client import get_admin_client
 from app.middleware.auth import get_current_user
 from app.models.ticket import TicketCreate, TicketResponse
+from app.services.input_sanitizer import sanitize_payload
 from app.services.notification_service import create_notification, notify_team
 
 router = APIRouter()
@@ -87,14 +88,15 @@ def _log_event(
 @router.post("", response_model=TicketResponse)
 async def create_ticket(ticket: TicketCreate, user: dict = Depends(get_current_user)):
     sb = get_admin_client()
+    payload = sanitize_payload(ticket.model_dump())
     ticket_data = {
-        "subject": ticket.subject,
-        "body": ticket.body,
+        "subject": payload["subject"],
+        "body": payload["body"],
         "submitter_id": user["id"],
         "source": "web",
-        "category": ticket.category,
-        "priority": ticket.priority,
-        "attachments": ticket.attachments or [],
+        "category": payload.get("category"),
+        "priority": payload.get("priority"),
+        "attachments": payload.get("attachments") or [],
         "status": "new",
     }
     response = sb.table("tickets").insert(ticket_data).execute()
@@ -189,7 +191,7 @@ async def get_ticket_queue(
                 f"assigned_team_id.eq.{user['team_id']},assigned_agent_id.eq.{user['id']},assigned_team_id.is.null"
             )
 
-    statuses = [s.strip() for s in (status or "escalated,pending_review,reopened").split(",") if s.strip()]
+    statuses = [s.strip() for s in (status or "triaged,escalated,pending_review,reopened").split(",") if s.strip()]
     query = query.in_("status", statuses)
 
     if priority:

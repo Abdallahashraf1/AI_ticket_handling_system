@@ -1,11 +1,13 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useEffect, useState } from 'react'
 import KPICards from '@/components/analytics/KPICards'
-import SLAChart from '@/components/analytics/SLAChart'
-import TrendChart from '@/components/analytics/TrendChart'
 import { useAnalyticsDashboard, useSlaDashboard } from '@/hooks/useAnalytics'
 import { createClient } from '@/lib/supabase/client'
+
+const SLAChart = dynamic(() => import('@/components/analytics/SLAChart'), { ssr: false })
+const TrendChart = dynamic(() => import('@/components/analytics/TrendChart'), { ssr: false })
 
 type Overview = {
   total_tickets: number

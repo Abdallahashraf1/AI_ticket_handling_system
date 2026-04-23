@@ -1,10 +1,12 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import NLQueryInput from '@/components/analytics/NLQueryInput'
 import QueryResult from '@/components/analytics/QueryResult'
 import KPICards from '@/components/analytics/KPICards'
-import TrendChart from '@/components/analytics/TrendChart'
 import { useAnalyticsDashboard, useAnalyticsQuery } from '@/hooks/useAnalytics'
+
+const TrendChart = dynamic(() => import('@/components/analytics/TrendChart'), { ssr: false })
 
 export default function ManagerAnalyticsPage() {
   const dashboard = useAnalyticsDashboard()

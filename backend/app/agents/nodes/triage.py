@@ -1,13 +1,13 @@
 from datetime import datetime, timezone
 import structlog
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.output_parsers import JsonOutputParser
 from app.agents.state import TicketAgentState
 from app.agents.prompts.triage import TRIAGE_SYSTEM_PROMPT
 from app.agents.tools.duplicate_detector import find_duplicates
 from app.db.redis import get_redis
 from app.db.supabase_client import get_supabase
+from app.services.llm_resilience import LLMServiceUnavailable, invoke_json_llm
 from app.services.sla_service import SLAService
 
 logger = structlog.get_logger()
@@ -19,7 +19,6 @@ async def triage_node(state: TicketAgentState) -> TicketAgentState:
     dup_id = await find_duplicates(state['subject'], state['body'], state['submitter_id'])
     
     # 2. Invoke LLM for classification
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
     messages = [
         SystemMessage(content=TRIAGE_SYSTEM_PROMPT),
         HumanMessage(content=f"Ticket Subject: {state['subject']}\nTicket Body: {state['body']}")
@@ -27,11 +26,10 @@ async def triage_node(state: TicketAgentState) -> TicketAgentState:
     
     # Enable JSON mode by forcing it down if necessary, else we parse after
     parser = JsonOutputParser()
-    chain = llm | parser
     
     try:
-        result = await chain.ainvoke(messages)
-    except Exception as e:
+        result = await invoke_json_llm(model="gemini-2.5-flash", temperature=0, messages=messages, parser=parser)
+    except LLMServiceUnavailable as e:
         logger.error("Error invoking LLM in triage", error=str(e))
         result = {
             "category": "general",

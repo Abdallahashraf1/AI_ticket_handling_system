@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+import json
 from typing import Any, Dict, List, Optional
 
 import structlog
 
+from app.config import settings
+from app.db.redis import get_redis_sync
 from app.db.supabase_client import get_admin_client
 from app.services.notification_service import create_notification, notify_team, notify_user_roles
 
@@ -31,25 +34,52 @@ class SLAPolicy:
 class SLAService:
     def __init__(self) -> None:
         self.sb = get_admin_client()
+        self._policy_cache_key = "sla:policies"
 
     def list_policies(self) -> List[Dict[str, Any]]:
-        response = self.sb.table("sla_policies").select("*").order("priority").execute()
-        return response.data or []
+        return self._get_cached_policies()
 
     def create_policy(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         response = self.sb.table("sla_policies").insert(payload).execute()
         if not response.data:
             raise ValueError("Failed to create SLA policy")
+        self._invalidate_policy_cache()
         return response.data[0]
 
     def update_policy(self, policy_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         response = self.sb.table("sla_policies").update(payload).eq("id", policy_id).execute()
         if not response.data:
             raise ValueError("SLA policy not found")
+        self._invalidate_policy_cache()
         return response.data[0]
 
     def delete_policy(self, policy_id: str) -> None:
         self.sb.table("sla_policies").delete().eq("id", policy_id).execute()
+        self._invalidate_policy_cache()
+
+    def _get_cached_policies(self) -> List[Dict[str, Any]]:
+        try:
+            redis_client = get_redis_sync()
+            cached = redis_client.get(self._policy_cache_key)
+            if cached:
+                return json.loads(cached)
+        except Exception:
+            pass
+
+        response = self.sb.table("sla_policies").select("*").order("priority").execute()
+        policies = response.data or []
+        try:
+            redis_client = get_redis_sync()
+            redis_client.set(self._policy_cache_key, json.dumps(policies), ex=settings.ANALYTICS_CACHE_TTL_SECONDS)
+        except Exception:
+            pass
+        return policies
+
+    def _invalidate_policy_cache(self) -> None:
+        try:
+            get_redis_sync().delete(self._policy_cache_key)
+        except Exception:
+            pass
 
     def _is_business_time(self, dt: datetime) -> bool:
         return dt.weekday() in BUSINESS_DAYS and BUSINESS_START_HOUR <= dt.hour < BUSINESS_END_HOUR
@@ -76,15 +106,13 @@ class SLAService:
         return cursor
 
     def _find_policy(self, priority: str) -> Optional[Dict[str, Any]]:
-        response = (
-            self.sb.table("sla_policies")
-            .select("*")
-            .eq("priority", priority)
-            .order("is_default", desc=True)
-            .limit(1)
-            .execute()
+        policies = self._get_cached_policies()
+        ordered = sorted(
+            [policy for policy in policies if policy.get("priority") == priority],
+            key=lambda policy: bool(policy.get("is_default")),
+            reverse=True,
         )
-        return (response.data or [None])[0]
+        return ordered[0] if ordered else None
 
     def calculate_deadline(self, priority: str, created_at: datetime) -> datetime:
         policy = self._find_policy(priority) or self._find_policy("medium")

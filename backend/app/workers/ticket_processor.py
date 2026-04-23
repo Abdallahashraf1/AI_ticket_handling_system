@@ -4,6 +4,8 @@ from app.celery_app import celery_app
 from app.db.supabase_client import get_supabase
 from app.agents.graph import ticket_pipeline
 from app.agents.state import TicketAgentState
+from app.services.llm_resilience import LLMServiceUnavailable
+from app.services.ticket_service import mark_ticket_retry, move_ticket_to_dead_letter
 
 logger = structlog.get_logger()
 
@@ -48,11 +50,32 @@ async def async_process_ticket(ticket_id: str):
     try:
         final_state = await ticket_pipeline.ainvoke(state)
         logger.info("Finished running LangGraph pipeline", state=final_state)
+        return {"status": "completed"}
+    except LLMServiceUnavailable as e:
+        logger.warning("LLM unavailable, deferring ticket processing", ticket_id=ticket_id, error=str(e))
+        raise
     except Exception as e:
         logger.error("Error executing LangGraph pipeline", error=str(e))
+        raise
 
-@celery_app.task(name="process_ticket_task")
-def process_ticket(ticket_id: str):
+@celery_app.task(bind=True, name="process_ticket_task", max_retries=5)
+def process_ticket(self, ticket_id: str):
     """Celery task entrypoint."""
-    logger.info("Received ticket for processing", ticket_id=ticket_id)
-    asyncio.run(async_process_ticket(ticket_id))
+    attempt = self.request.retries + 1
+    logger.info("Received ticket for processing", ticket_id=ticket_id, attempt=attempt)
+    try:
+        asyncio.run(async_process_ticket(ticket_id))
+    except LLMServiceUnavailable as exc:
+        if self.request.retries >= self.max_retries:
+            asyncio.run(move_ticket_to_dead_letter(ticket_id, str(exc), attempt))
+            return
+        mark_ticket_retry(ticket_id, attempt, str(exc))
+        countdown = min(2 ** self.request.retries, 60)
+        raise self.retry(exc=exc, countdown=countdown)
+    except Exception as exc:
+        if self.request.retries >= self.max_retries:
+            asyncio.run(move_ticket_to_dead_letter(ticket_id, str(exc), attempt))
+            return
+        mark_ticket_retry(ticket_id, attempt, str(exc))
+        countdown = min(2 ** self.request.retries, 60)
+        raise self.retry(exc=exc, countdown=countdown)

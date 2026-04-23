@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
 import structlog
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.output_parsers import JsonOutputParser
 from app.agents.state import TicketAgentState
 from app.agents.prompts.escalation import ESCALATION_SYSTEM_PROMPT
 from app.agents.tools.notifier import send_notification
 from app.db.supabase_client import get_supabase
+from app.services.llm_resilience import LLMServiceUnavailable, invoke_json_llm
 from app.services.sla_service import SLAService
 
 logger = structlog.get_logger()
@@ -15,20 +15,18 @@ async def escalation_node(state: TicketAgentState) -> TicketAgentState:
     logger.info("Starting escalation_node", ticket_id=state['ticket_id'])
     
     # 1. Invoke LLM for escalation breakdown
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
     messages = [
         SystemMessage(content=ESCALATION_SYSTEM_PROMPT),
         HumanMessage(content=f"Ticket Subject: {state['subject']}\nTicket Body: {state['body']}\nCategory: {state['category']}")
     ]
     
     parser = JsonOutputParser()
-    chain = llm | parser
     
     try:
-        result = await chain.ainvoke(messages)
+        result = await invoke_json_llm(model="gemini-2.5-flash", temperature=0, messages=messages, parser=parser)
         escalation_reason = result.get('escalation_reason', 'Complex issue requiring human review.')
         assigned_team = result.get('assigned_team', 'General Support')
-    except Exception as e:
+    except LLMServiceUnavailable as e:
         logger.error("Error invoking LLM in escalation", error=str(e))
         escalation_reason = "Fallback logic activated for escalation."
         assigned_team = "General Support"

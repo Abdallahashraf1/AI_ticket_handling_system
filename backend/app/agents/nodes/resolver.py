@@ -1,11 +1,11 @@
 import structlog
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.output_parsers import JsonOutputParser
 from app.agents.state import TicketAgentState
 from app.agents.prompts.resolver import RESOLVER_SYSTEM_PROMPT
 from app.agents.tools.rag_search import search_knowledge_base
 from app.db.supabase_client import get_supabase
+from app.services.llm_resilience import LLMServiceUnavailable, invoke_json_llm
 
 logger = structlog.get_logger()
 
@@ -16,19 +16,17 @@ async def resolver_node(state: TicketAgentState) -> TicketAgentState:
     rag_context = await search_knowledge_base(state['subject'] + " " + state['body'])
     
     # 2. Invoke LLM for resolution draft
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
     messages = [
         SystemMessage(content=RESOLVER_SYSTEM_PROMPT),
         HumanMessage(content=f"Knowledge Base Context:\n{rag_context}\n\nTicket Subject: {state['subject']}\nTicket Body: {state['body']}")
     ]
     
     parser = JsonOutputParser()
-    chain = llm | parser
     
     try:
-        result = await chain.ainvoke(messages)
+        result = await invoke_json_llm(model="gemini-2.5-flash", temperature=0.3, messages=messages, parser=parser)
         draft_response = result.get('draft_response', 'We are looking into your issue.')
-    except Exception as e:
+    except LLMServiceUnavailable as e:
         logger.error("Error invoking LLM in resolver", error=str(e))
         draft_response = "We have received your ticket and are investigating."
 
